@@ -17,8 +17,8 @@ class SegmentSequence(Transformer):
     flag_name : str, optional
         name of the source for the flag
     """
-    def __init__(self, data_stream,seq_size=100,which_sources=None,
-                 add_flag=False, flag_name = None, **kwargs):
+    def __init__(self, data_stream, seq_size=100, which_sources=None,
+                 add_flag=False, flag_name = None, min_size = 10, **kwargs):
         super(SegmentSequence, self).__init__(data_stream=data_stream,
             produces_examples=data_stream.produces_examples,**kwargs)
 
@@ -31,6 +31,7 @@ class SegmentSequence(Transformer):
         self.data = None
         self.len_data = None
         self.add_flag = add_flag
+        self.min_size = min_size
 
         if flag_name is None:
             flag_name = u"start_flag"
@@ -61,7 +62,7 @@ class SegmentSequence(Transformer):
 
         self.step += self.seq_size
         
-        if self.step + 1 > self.len_data:
+        if self.step + self.min_size >= self.len_data:
             self.data = None
             self.len_data = None
             self.step = 0
