@@ -4,6 +4,7 @@ import theano
 import matplotlib
 import sys
 import os
+import math
 matplotlib.use('Agg')
 
 from matplotlib import pyplot
@@ -13,7 +14,7 @@ from blocks.algorithms import (GradientDescent, Adam,
                                StepClipping, CompositeRule)
 from blocks.bricks import (Tanh, MLP,
                         Rectifier, Activation, Identity)
-from blocks.bricks.recurrent import LSTM, RecurrentStack
+from blocks.bricks.recurrent import GatedRecurrent, RecurrentStack
 from blocks.bricks.sequence_generators import ( 
                         Readout, SequenceGenerator)
 
@@ -23,6 +24,7 @@ from blocks.extensions.monitoring import (TrainingDataMonitoring,
 from blocks.extensions.predicates import OnLogRecord
 from blocks.extensions.saveload import Checkpoint
 from blocks.extensions.training import TrackTheBest
+from blocks.filter import VariableFilter
 from blocks.graph import ComputationGraph
 from blocks.initialization import Constant, IsotropicGaussian
 from blocks.main_loop import MainLoop
@@ -55,7 +57,7 @@ target_size = frame_size * k
 depth_x = depth
 hidden_size_mlp_x = 32*size
 
-depth_lstm = depth-1
+depth_transition = depth-1
 
 depth_theta = depth
 hidden_size_mlp_theta = 32*size
@@ -112,9 +114,9 @@ mlp_x = MLP(activations = activations_x,
 
 feedback = DeepTransitionFeedback(mlp = mlp_x)
 
-transition = [LSTM(dim=hidden_size_recurrent, 
+transition = [GatedRecurrent(dim=hidden_size_recurrent, 
                    use_bias = True,
-                   name = "lstm_{}".format(i) ) for i in range(depth_lstm)]
+                   name = "gru_{}".format(i) ) for i in range(depth_transition)]
 
 transition = RecurrentStack( transition,
             name="transition", skip_connections = True)
@@ -168,8 +170,8 @@ generator.weights_init = IsotropicGaussian(0.01)
 generator.biases_init = Constant(0.)
 generator.push_initialization_config()
 
-generator.transition.biases_init = IsotropicGaussian(0.01,1)
-generator.transition.push_initialization_config()
+#generator.transition.biases_init = IsotropicGaussian(0.01,1)
+#generator.transition.push_initialization_config()
 
 generator.initialize()
 
@@ -191,6 +193,12 @@ emit = generator.generate(
 
 cg = ComputationGraph(cost)
 model = Model(cost)
+
+transition_matrix = VariableFilter(
+            theano_name_regex = "state_to_state")(cg.parameters)
+for matr in transition_matrix:
+    matr.set_value(0.98*numpy.eye(hidden_size_recurrent, dtype = floatX))
+
 
 #################
 # Algorithm
@@ -214,6 +222,13 @@ valid_monitor = DataStreamMonitoring(
      every_n_batches = n_batches,
      prefix="valid")
 
+def _is_nan(log):
+    try:
+      result = math.isnan(log.current_row['train_nll'])
+      return result
+    except:
+      return False
+
 extensions = extensions=[
     Timing(every_n_batches = n_batches),
     train_monitor,
@@ -234,7 +249,8 @@ extensions = extensions=[
      ).add_condition(['after_epoch'],
           predicate=OnLogRecord('valid_nll_best_so_far')),
     Printing(every_n_batches = n_batches, after_epoch = True),
-    FinishAfter(after_n_epochs=2),
+    FinishAfter(after_n_epochs=10)
+    .add_condition(["after_batch"], _is_nan),
     SaveComputationGraph(emit),
     Flush(every_n_batches = n_batches, after_epoch = True)
     ]

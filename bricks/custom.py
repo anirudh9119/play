@@ -154,7 +154,6 @@ class GMMMLP(Initializable):
                          dims=[input_dim, k],
                          name=self.name + "_coeff")
 
-
         self.coeff2 = NDimensionalSoftmax()
         self.mlp = mlp
         self.children = [self.mlp, self.mu, 
@@ -165,9 +164,9 @@ class GMMMLP(Initializable):
     def apply(self, inputs):
         state = self.mlp.apply(inputs)
         mu = self.mu.apply(state)
-        sigma = self.sigma.apply(state)
+        sigma = self.sigma.apply(state)+ self.const
         coeff = self.coeff2.apply(self.coeff.apply(state),
-            extra_ndim=state.ndim - 2) + self.const
+            extra_ndim=state.ndim - 2)
         return mu, sigma, coeff
 
     @property
