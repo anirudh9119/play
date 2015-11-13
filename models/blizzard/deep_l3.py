@@ -12,11 +12,6 @@ from scipy.io import wavfile
 
 from blocks.algorithms import (GradientDescent, Adam,
                                StepClipping, CompositeRule)
-from blocks.bricks import (Tanh, MLP,
-                        Rectifier, Activation, Identity)
-from blocks.bricks.recurrent import GatedRecurrent, RecurrentStack
-from blocks.bricks.sequence_generators import ( 
-                        Readout, SequenceGenerator)
 
 from blocks.extensions import FinishAfter, Printing, Timing
 from blocks.extensions.monitoring import (TrainingDataMonitoring,
@@ -34,45 +29,45 @@ from fuel.streams import ServerDataStream
 
 from theano import tensor, config, function
 
-from play.bricks.custom import GMMMLP, GMMEmitter, DeepTransitionFeedback
-from play.bricks.recurrent import SimpleSequenceAttention
 from play.datasets.blizzard import Blizzard
 from play.extensions import SaveComputationGraph, Flush
 from play.extensions.plot import Plot
-from play.utils import GMM
+
+from play.projects.pyramid.config import PyramidParameters
 
 ###################
 # Define parameters of the model
 ###################
 
-lr = 10 ** (2*numpy.random.rand() - 5)
-depth = numpy.random.randint(2,5)
-size = numpy.random.randint(10,20)
+pl_params = PyramidParameters()
 
-batch_size = 64
-frame_size = 128
-k = 32
-target_size = frame_size * k
+lr = pl_params.lr
+depth = pl_params.depth
+size = pl_params.size
 
-depth_x = depth
-hidden_size_mlp_x = 32*size
+batch_size = pl_params.batch_size
+frame_size = pl_params.frame_size
+k = pl_params.k
+target_size = pl_params.target_size
 
-depth_transition = depth-1
+depth_x = pl_params.depth_x
+hidden_size_mlp_x = pl_params.hidden_size_mlp_x
 
-depth_theta = depth
-hidden_size_mlp_theta = 32*size
-hidden_size_recurrent = 32*size*3
+depth_transition = pl_params.depth_transition
 
-depth_context = depth
-hidden_size_mlp_context = 32*size
-context_size = 32*size
+depth_theta = pl_params.depth_theta
+hidden_size_mlp_theta = pl_params.hidden_size_mlp_theta
+hidden_size_recurrent = pl_params.hidden_size_recurrent
 
+depth_context = pl_params.depth_context
+hidden_size_mlp_context = pl_params.hidden_size_mlp_context
+context_size = pl_params.context_size
 
 #print config.recursion_limit
 floatX = theano.config.floatX
 
-#job_id = 5557
-job_id = int(sys.argv[1])
+job_id = 5656
+#job_id = int(sys.argv[1])
 
 save_dir = os.environ['RESULTS_DIR']
 save_dir = os.path.join(save_dir,'blizzard/', str(job_id) + "/")
@@ -90,74 +85,14 @@ valid_stream = ServerDataStream(('upsampled', 'residual',),
 # Model
 #################
 
+from play.projects.pyramid.model import PyramidLayer
+pl= PyramidLayer(batch_size, frame_size, k, depth, size)
+
 x = tensor.tensor3('residual')
 context = tensor.tensor3('upsampled')
 
-activations_x = [Rectifier()]*depth_x
-
-dims_x = [frame_size] + [hidden_size_mlp_x]*(depth_x-1) + \
-         [4*hidden_size_recurrent]
-
-activations_theta = [Rectifier()]*depth_theta
-
-dims_theta = [hidden_size_recurrent] + \
-             [hidden_size_mlp_theta]*depth_theta
-
-activations_context = [Rectifier()]*depth_context
-
-dims_context = [frame_size] + [hidden_size_mlp_context]*(depth_context-1) + \
-         [context_size]
-
-mlp_x = MLP(activations = activations_x,
-            dims = dims_x,
-            name = "mlp_x")
-
-feedback = DeepTransitionFeedback(mlp = mlp_x)
-
-transition = [GatedRecurrent(dim=hidden_size_recurrent, 
-                   use_bias = True,
-                   name = "gru_{}".format(i) ) for i in range(depth_transition)]
-
-transition = RecurrentStack( transition,
-            name="transition", skip_connections = True)
-
-mlp_theta = MLP( activations = activations_theta,
-             dims = dims_theta,
-             name = "mlp_theta")
-
-mlp_gmm = GMMMLP(mlp = mlp_theta,
-                  dim = target_size,
-                  k = k,
-                  const = 0.00001,
-                  name = "gmm_wrap")
-
-gmm_emitter = GMMEmitter(gmmmlp = mlp_gmm,
-  output_size = frame_size, k = k)
-
-source_names = [name for name in transition.apply.states if 'states' in name]
-
-attention = SimpleSequenceAttention(
-              state_names = source_names,
-              state_dims = [hidden_size_recurrent],
-              attended_dim = context_size,
-              name = "attention")
-
-#ipdb.set_trace()
-# Verify source names
-readout = Readout(
-    readout_dim = hidden_size_recurrent,
-    source_names =source_names + ['feedback'] + ['glimpses'],
-    emitter=gmm_emitter,
-    feedback_brick = feedback,
-    name="readout")
-
-generator = SequenceGenerator(readout=readout, 
-                              transition=transition,
-                              attention = attention,
-                              name = "generator")
-
-mlp_context = MLP(activations = activations_context,
-                  dims = dims_context)
+mlp_context = pl.mlp_context
+generator = pl.generator
 
 bricks = [mlp_context]
 
@@ -204,7 +139,7 @@ for matr in transition_matrix:
 # Algorithm
 #################
 
-n_batches = 139#139*16
+n_batches = 16#139#139*16
 
 algorithm = GradientDescent(
     cost=cost, parameters=cg.parameters,

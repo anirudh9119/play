@@ -1,4 +1,5 @@
 from fuel.transformers import Transformer
+import numpy
 
 class SegmentSequence(Transformer):
     """Segments the sequences in a batch.
@@ -65,7 +66,7 @@ class SegmentSequence(Transformer):
         if self.step + self.min_size >= self.len_data:
             self.data = None
             self.len_data = None
-            self.step = 0
+            self.step = 1
             flag = 1
 
         if self.add_flag:

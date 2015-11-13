@@ -20,32 +20,19 @@ from scipy.io import wavfile
 
 batch_size = 64
 frame_size = 128
-n_iter = 4
+n_iter = 2
 n_samples = 5
 
-def _transpose(data):
-    return tuple(array.swapaxes(0,1) for array in data)
-
 def _segment_axis(data):
-    x = tuple([numpy.array([segment_axis(x, frame_size, 0) for x in var]) for var in data])
-    return x
+        # Defined inside so that frame_size is available
+        x = tuple([numpy.array([segment_axis(x, frame_size, 0) for x in var])
+                   for var in data])
+        return x
 
-def _downsample_and_upsample(data):
-    # HARDCODED
-    data_aug = numpy.hstack([data[0], numpy.zeros((batch_size,4))])
-    ds = numpy.array([resample(x, 0.5, 'sinc_best') for x in data_aug])
-    us = numpy.array([resample(x, 2, 'sinc_best')[:-1] for x in ds])
-    return (us,)
+from play.datasets.server.blizzard.server_stream import (
+    define_stream, Resample, _copy, _equalize_size, _transpose)
 
-def _equalize_size(data):
-    min_size = [min([len(x) for x in sequences]) for sequences in zip(*data)]
-    x = tuple([numpy.array([x[:size] for x,size in zip(var,min_size)]) for var in data])
-    return x
-
-def _get_residual(data):
-    # The order is correct?
-    ds = numpy.array([x[0]-x[1] for x in zip(*data)])
-    return (ds,)
+data_stream = define_stream(('test',))
 
 data_dir = os.environ['FUEL_DATA_PATH']
 data_dir = os.path.join(data_dir, 'blizzard/', 'blizzard_standardize.npz')
@@ -69,15 +56,22 @@ for i in xrange(n_iter-1):
     x_tr = next(epoch_iterator)[0]
     raw_audio = numpy.hstack([raw_audio, x_tr])
 
-job_id = sys.argv[1]
 save_dir = os.environ['RESULTS_DIR']
-exp_path = os.path.join(save_dir,'blizzard/', job_id + "/")
+exp_path = os.path.join(save_dir,'blizzard/')
 
-for file_ in os.listdir(exp_path):
-    if file_.endswith(".pkl"):
-        exp_file = file_
+# for file_ in os.listdir(exp_path):
+#     if file_.endswith(".pkl"):
+#         exp_file = file_
 
-save_dir = os.path.join(save_dir,'blizzard/', job_id + "/", "samples/")
+exp_file = 'best_simple_0.pkl'
+save_dir = os.path.join(save_dir,'blizzard/', "samples/")
+
+def _is_nan(log):
+    try:
+        result = math.isnan(log.current_row['train_nll'])
+        return result
+    except:
+        return False
 
 main_loop = load(os.path.join(exp_path,exp_file))
 
@@ -91,10 +85,21 @@ for i, sample in enumerate(raw_audio[:n_samples]):
     wavfile.write(save_dir + "original_{}.wav".format(i),
         rate, sample)
 
-data_stream = ScaleAndShift(data_stream, scale = 1/data_std, 
-                                        shift = -data_mean/data_std)
-data_stream = Mapping(data_stream, _downsample_and_upsample, 
-                      add_sources=('upsampled',))
+data_stream = ScaleAndShift(data_stream,
+                            scale=1/data_std,
+                            shift=-data_mean/float(data_std))
+
+initial_scale=1
+scale=0.5
+batch_size=64
+seq_length=64
+frame_size=128
+
+data_stream = Resample(data_stream, scale=initial_scale)
+data_stream = Mapping(data_stream, _copy, add_sources=('upsampled',))
+data_stream = Resample(data_stream, scale=scale, which_sources=('upsampled',))
+data_stream = Resample(data_stream, scale=1/scale, which_sources=('upsampled',))
+data_stream = Mapping(data_stream, _equalize_size)
 
 epoch_iterator = data_stream.get_epoch_iterator()
 
@@ -116,7 +121,6 @@ for i,(original_, upsampled_) in enumerate(
     pyplot.close()
 
 real_residual = raw_audio_std - upsampled_audio
-
 rate = 16000
 
 upsampled_audio_std = upsampled_audio*data_std + data_mean
@@ -128,24 +132,31 @@ for i, sample in enumerate(upsampled_audio_std[:n_samples]):
 upsampled = _segment_axis((upsampled_audio,))[0]
 upsampled = _transpose((upsampled,))[0]
 
-
 # emit = generator.generate(
 #   attended=mlp_context.apply(context),
 #   n_steps=context.shape[0],
 #   batch_size=context.shape[1],
 #   iterate=True
 #   )[-4]
-
 ipdb.set_trace()
-predict = main_loop.extensions[-2].theano_function
 
+pl = main_loop.model.get_top_bricks()[0]
+from theano import function, tensor
 
+x = tensor.tensor3('residual')
+context = tensor.tensor3('upsampled')
 
+x_g = pl.mlp_x.apply(context)
+inputs = pl.fork.apply(x_g, as_dict = True)
+h = pl.transition.apply(**inputs)
+
+predict = pl.gmm_emitter.emit(h[-1])
+predict = function([context],predict)
 
 #del main_loop
 #ipdb.set_trace()
 
-residuals = predict(upsampled)[0]
+residuals = predict(upsampled[:,:n_samples,:])
 residuals = _transpose((residuals,))[0]
 residuals = numpy.array([x.flatten() for x in residuals])
 
@@ -168,8 +179,8 @@ for i,(real_x, predict_x) in enumerate(zip(real_residual, residuals)[:n_samples]
     wavfile.write(save_dir + "predicted_residual_{}.wav".format(i),
         rate, audio.astype('int16'))
 
-residuals = predict(upsampled)[0]
-reconstructed = upsampled + residuals
+residuals = predict(upsampled[:,:n_samples,:])
+reconstructed = upsampled[:,:n_samples,:] + residuals
 reconstructed = _transpose((reconstructed,))[0]
 reconstructed = numpy.array([x.flatten() for x in reconstructed])
 reconstructed_std = reconstructed*data_std + data_mean
@@ -181,7 +192,3 @@ for i, sample in enumerate(reconstructed_std[:n_samples]):
 
     wavfile.write(save_dir + "reconstructed_with_l0_{}.wav".format(i),
         rate, sample.astype('int16'))
-
-
-
-
