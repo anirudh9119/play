@@ -103,7 +103,7 @@ if tbptt_flag:
 # Model
 #################
 
-pl = SimplePyramidLayer(batch_size, frame_size, k, depth, size)
+pl = PyramidLayer(batch_size, frame_size, k, depth, size)
 
 x = tensor.tensor3('residual')
 context = tensor.tensor3('upsampled')
@@ -222,4 +222,4 @@ main_loop = MainLoop(
     extensions=extensions)
 
 main_loop.run()
-ipdb.set_trace()
+# ipdb.set_trace()

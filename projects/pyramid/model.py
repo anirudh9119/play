@@ -143,6 +143,13 @@ class PyramidLayer(Initializable):
 
         return cost_matrix.mean()
 
+    @application
+    def generate(context):
+        return self.generator.generate(
+          attended = self.mlp_context.apply(context),
+          n_steps = context.shape[0],
+          batch_size = context.shape[1],
+          iterate = True)
 
 class SimplePyramidLayer(Initializable):
     """Basic unit for the pyramid model.
@@ -243,3 +250,10 @@ class SimplePyramidLayer(Initializable):
 
         cost = self.gmm_emitter.cost(h[-1], x)
         return cost.mean()
+
+    @application
+    def generate(context):
+        x_g = self.mlp_x.apply(context)
+        inputs = self.fork.apply(x_g, as_dict = True)
+        h = self.transition.apply(**dict_union(inputs, kwargs))
+        return self.gmm_emitter.emit(h[-1])
