@@ -123,7 +123,14 @@ def open_stream(which_sets=('train',),
 
 if __name__ == "__main__":
     from play.projects.pyramid.config import PyramidParameters
-    pl_params = PyramidParameters()
+
+    if len(sys.argv) > 1:
+      num_job = int(sys.argv[1])
+    else:
+      num_job = 0
+
+    pl_params = PyramidParameters(num_job)
+
     port = pl_params.port
     num_valid_examples = 64
 

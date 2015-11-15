@@ -1,0 +1,71 @@
+#!/bin/bash
+#PBS -N 10
+#PBS -A jvb-000-ag
+#PBS -l walltime=23:50:00
+#PBS -l nodes=1:gpus=1
+#PBS -M rdz.sotelo@gmail.com
+#PBS -m bea
+#PBS -l feature=k80
+#PBS -t [1-10]%30
+#PBS -E 
+#PBS -e /scratch/jvb-000-aa/sotelo/results/blizzard/cluster_files/%J%I.err
+#PBS -o /scratch/jvb-000-aa/sotelo/results/blizzard/cluster_files/%J%I.out
+
+echo "New job started."
+echo $PBS_JOBID
+echo $PBS_ARRAYID
+
+NOTES="Baseline simple."
+
+# Get the port out of the job id.
+JOB_ID=$(cut -f1 -d"[" <<< $PBS_JOBID)
+JOB_ID=$(cut -f1 -d"." <<< $JOB_ID)
+
+cd $SCRATCH/code
+
+export LSCRATCH=/scratch-local/sotelo/
+mkdir $LSCRATCH/data
+mkdir $LSCRATCH/blizzard
+
+echo "Data path is:"
+FILE=$LSCRATCH/data/blizzard/tbptt_blizzard.hdf5
+echo $FILE
+
+#PORT=${MOAB_JOBID//[^[:alnum:]]/} #Remove [] brackets
+# $MOAB_JOBARRAYINDEX
+
+if [ -f $FILE ];
+then
+   echo "File $FILE exists."
+else
+   mkdir $LSCRATCH/data
+   mkdir $LSCRATCH/data/blizzard
+   cp $SCRATCH/data/blizzard/* $LSCRATCH/data/blizzard
+fi
+
+export RESULTS_DIR=$SCRATCH/results/blizzard/$JOB_ID/
+mkdir $RESULTS_DIR
+mkdir $RESULTS_DIR/outfiles
+mkdir $RESULTS_DIR/pkl
+mkdir $RESULTS_DIR/samples
+mkdir $RESULTS_DIR/progress
+export THEANO_FLAGS=floatX=float32
+export FUEL_DATA_PATH=$LSCRATCH/data/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/scratch/jvb-000-aa/sotelo/local/cbin/lib
+
+cp play/projects/pyramid/layer.py $RESULTS_DIR/model.py
+cp play/projects/pyramid/config.py $RESULTS_DIR
+echo $NOTES > $RESULTS_DIR/notes.txt
+
+THEANO_FLAGS=floatX=float32 python play/datasets/server/blizzard/server_stream.py $PBS_ARRAYID  &
+SERVER_PID=$!
+
+THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python play/projects/pyramid/layer.py $PBS_ARRAYID
+ 2> $RESULTS_DIR/outfiles/e_$PBS_ARRAYID.txt 1> $RESULTS_DIR/outfiles/o_$PBS_ARRAYID.txt &
+TRAINER_PID=$!
+
+wait $TRAINER_PID
+kill -9 $SERVER_PID
+
+# Copy files back
+echo "Finished program."

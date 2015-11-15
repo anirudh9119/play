@@ -4,7 +4,7 @@ import numpy
 class PyramidParameters:
     def __init__(self, seed=0):
         numpy.random.seed(seed = seed)
-        self.lr = 10 ** (2*numpy.random.rand() - 4)
+        self.lr = 10 ** (4*numpy.random.rand() - 5)
         self.depth = numpy.random.randint(2,5)
         self.size = numpy.random.randint(10,20)
 
@@ -32,11 +32,11 @@ class PyramidParameters:
 
         self.initial_scale = 1
         self.scale = .5
-        self.port = 5656
+        self.port = 5800+seed
 
         # tbptt
         self.tbptt_flag = True
-        self.experiment_name = 'simple_{}'.format(seed)
+        self.experiment_name = 'conditional_{}'.format(seed)
 
 
 if __name__ == "__main__":

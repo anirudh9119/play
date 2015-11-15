@@ -103,7 +103,7 @@ if tbptt_flag:
 # Model
 #################
 
-pl = PyramidLayer(batch_size, frame_size, k, depth, size)
+pl = SimplePyramidLayer(batch_size, frame_size, k, depth, size)
 
 x = tensor.tensor3('residual')
 context = tensor.tensor3('upsampled')
@@ -195,24 +195,27 @@ extensions = [
     train_monitor,
     valid_monitor,
     TrackTheBest('valid_nll', every_n_batches=n_batches),
-    Plot(save_dir+experiment_name+".png",
+    Plot(save_dir+ "progress/" +experiment_name+".png",
          [['train_nll',
            'valid_nll']],
          every_n_batches=4*n_batches,
          email=False),
     Checkpoint(
-      save_dir+"best_"+experiment_name+".pkl",
+      save_dir+"pkl/best_"+experiment_name+".pkl",
       use_cpickle=True
      ).add_condition(
         ['after_batch'], predicate=OnLogRecord('valid_nll_best_so_far')),
-    ProgressBar(),
+    #ProgressBar(),
     Printing(every_n_batches=n_batches, after_epoch=True),
-    Flush(every_n_batches=n_batches, after_epoch=True),
+    Flush(every_n_batches=n_batches,
+          after_epoch=True,
+          before_first_epoch = True),
     LearningRateSchedule(lr,
       'valid_nll',
       states = states.values(),
-      every_n_batches = n_batches),
-    TimedFinish(60*60*23)
+      every_n_batches = n_batches,
+      before_first_epoch = True),
+    TimedFinish(60*60*22)
     ]
 
 main_loop = MainLoop(
