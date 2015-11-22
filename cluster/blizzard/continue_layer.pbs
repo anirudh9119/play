@@ -1,0 +1,52 @@
+#!/bin/bash
+#PBS -N 10
+#PBS -A jvb-000-ag
+#PBS -l walltime=23:59:00
+#PBS -l nodes=1:gpus=1
+#PBS -M rdz.sotelo@gmail.com
+#PBS -m bea
+#PBS -l feature=k80
+#PBS -t 1-10
+#PBS -E 
+#PBS -e /scratch/jvb-000-aa/sotelo/results/blizzard/cluster_files/%J-%I-2.err
+#PBS -o /scratch/jvb-000-aa/sotelo/results/blizzard/cluster_files/%J-%I-2.out
+
+cd $SCRATCH/code
+
+OLD_PORT=50001
+NUM_EXP=$MOAB_JOBARRAYINDEX
+
+export LSCRATCH=/scratch-local/sotelo/
+mkdir $LSCRATCH/data
+mkdir $LSCRATCH/blizzard
+
+echo "Data path is:"
+FILE=$LSCRATCH/data/blizzard/tbptt_blizzard.hdf5
+echo $FILE
+
+#PORT=${MOAB_JOBID//[^[:alnum:]]/} #Remove [] brackets
+# $MOAB_JOBARRAYINDEX
+
+if [ -f $FILE ];
+then
+   echo "File $FILE exists."
+else
+   mkdir $LSCRATCH/data
+   mkdir $LSCRATCH/data/blizzard
+   cp $SCRATCH/data/blizzard/* $LSCRATCH/data/blizzard
+fi
+
+export RESULTS_DIR=$SCRATCH/results/blizzard/$OLD_PORT/
+export THEANO_FLAGS=floatX=float32
+export FUEL_DATA_PATH=$LSCRATCH/data/
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/scratch/jvb-000-aa/sotelo/local/cbin/lib
+
+THEANO_FLAGS=floatX=float32 python play/datasets/server/blizzard/server_stream.py $NUM_EXP  &> /dev/null &
+SERVER_PID=$!
+
+THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 ipython
+ play/continue_experiment.py $RESULTS_DIR/pkl/best_exp_$NUM_EXP.pkl > $RESULTS_DIR/outfiles/continue_$NUM_EXP.txt &
+TRAINER_PID=$!
+
+wait $TRAINER_PID
+kill -9 $SERVER_PID

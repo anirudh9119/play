@@ -1,12 +1,11 @@
 #!/bin/bash
-#PBS -N 10
 #PBS -A jvb-000-ag
 #PBS -l walltime=23:50:00
 #PBS -l nodes=1:gpus=1
 #PBS -M rdz.sotelo@gmail.com
 #PBS -m bea
 #PBS -l feature=k80
-#PBS -t [1-10]%30
+#PBS -t 1-10
 #PBS -E 
 #PBS -e /scratch/jvb-000-aa/sotelo/results/blizzard/cluster_files/%J%I.err
 #PBS -o /scratch/jvb-000-aa/sotelo/results/blizzard/cluster_files/%J%I.out
@@ -14,12 +13,14 @@
 echo "New job started."
 echo $PBS_JOBID
 echo $PBS_ARRAYID
+export PBS_ARRAYID=$MOAB_JOBARRAYINDEX
 
-NOTES="Baseline simple."
+NOTES="Continued training. Baseline."
 
 # Get the port out of the job id.
-JOB_ID=$(cut -f1 -d"[" <<< $PBS_JOBID)
+JOB_ID=$(cut -f1 -d"[" <<< $MOAB_JOBID)
 JOB_ID=$(cut -f1 -d"." <<< $JOB_ID)
+JOB_ID=50001
 
 cd $SCRATCH/code
 
@@ -60,8 +61,7 @@ echo $NOTES > $RESULTS_DIR/notes.txt
 THEANO_FLAGS=floatX=float32 python play/datasets/server/blizzard/server_stream.py $PBS_ARRAYID  &
 SERVER_PID=$!
 
-THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python play/projects/pyramid/layer.py $PBS_ARRAYID
- 2> $RESULTS_DIR/outfiles/e_$PBS_ARRAYID.txt 1> $RESULTS_DIR/outfiles/o_$PBS_ARRAYID.txt &
+THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python play/projects/pyramid/layer.py $PBS_ARRAYID 2> $RESULTS_DIR/outfiles/e_$PBS_ARRAYID.txt 1> $RESULTS_DIR/outfiles/o_$PBS_ARRAYID.txt &
 TRAINER_PID=$!
 
 wait $TRAINER_PID
