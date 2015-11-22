@@ -5,9 +5,8 @@ from fuel import config
 from fuel.datasets import H5PYDataset
 
 class Blizzard(H5PYDataset):
-    filename = 'tbptt_blizzard.hdf5'
-
-    def __init__(self, which_sets, **kwargs):
+    def __init__(self, which_sets, filename = 'tbptt_blizzard.hdf5', **kwargs):
+    	self.filename = filename
         super(Blizzard, self).__init__(self.data_path, which_sets, **kwargs)
 
     @property

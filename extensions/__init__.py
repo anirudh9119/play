@@ -63,7 +63,7 @@ class LearningRateSchedule(SimpleExtension):
             self.best_value = ext.best_value
             self.counter = self.patience
 
-        super(LearningRateSchedule2, self).__init__(**kwargs)
+        super(LearningRateSchedule, self).__init__(**kwargs)
 
     def do(self, callback_name, *args):
         current_value = self.main_loop.log.current_row.get(self.track_var)

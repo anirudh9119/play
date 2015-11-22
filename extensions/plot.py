@@ -36,6 +36,7 @@ class Plot(SimpleExtension):
         self.document = document
         self.num_plots = len(channels)
         self.channels = channels
+        self.all_channels = list(set([x for small in channels for x in small]))
 
         self.document=document
 
@@ -49,6 +50,7 @@ class Plot(SimpleExtension):
         log = self.main_loop.log
         df = DataFrame.from_dict(log, orient='index')
         df=df.interpolate('index')
+        df=df[self.all_channels].astype(float)
 
         fig, axarr = pyplot.subplots(self.num_plots, sharex=True)
 
