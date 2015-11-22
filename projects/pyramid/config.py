@@ -30,13 +30,13 @@ class PyramidParameters:
 
         # datastream
 
-        self.initial_scale = 1
+        self.initial_scale = .25
         self.scale = .5
         self.port = 5800+seed
 
         # tbptt
         self.tbptt_flag = True
-        self.experiment_name = 'conditional_{}'.format(seed)
+        self.experiment_name = 'exp_{}'.format(seed)
 
 
 if __name__ == "__main__":

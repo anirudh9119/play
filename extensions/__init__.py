@@ -11,6 +11,7 @@ from blocks.filter import VariableFilter
 from blocks.extensions import SimpleExtension
 from blocks.graph import ComputationGraph
 from blocks.roles import ALGORITHM_BUFFER
+from blocks.serialization import load
 
 class SaveComputationGraph(SimpleExtension):
     def __init__(self, variable, **kwargs):
@@ -38,7 +39,7 @@ class TimedFinish(SimpleExtension):
 class LearningRateSchedule(SimpleExtension):
     """ Control learning rate.
     """
-    def __init__(self, lr, track_var, states = {}, **kwargs):
+    def __init__(self, lr, track_var, states = {}, path = None, **kwargs):
         self.lr = lr
         self.patience = 3
         self.counter = 0
@@ -51,7 +52,18 @@ class LearningRateSchedule(SimpleExtension):
         self.tolerance = 1e-13
         self.states = states
         self.epsilon = -1e-5
-        super(LearningRateSchedule, self).__init__(before_first_epoch = True, **kwargs)
+
+        if path is not None:
+            loaded_main_loop = load(path)
+            #Hardcoded
+            ext = loaded_main_loop.extensions[-2]
+            self.lr.set_value(2.*ext.lr.get_value())
+            self.log = ext.log
+            self.parameter_values = ext.parameter_values
+            self.best_value = ext.best_value
+            self.counter = self.patience
+
+        super(LearningRateSchedule2, self).__init__(**kwargs)
 
     def do(self, callback_name, *args):
         current_value = self.main_loop.log.current_row.get(self.track_var)
@@ -64,18 +76,17 @@ class LearningRateSchedule(SimpleExtension):
             # self.iteration_state = copy.deepcopy(self.main_loop.iteration_state)
             self.log = copy.deepcopy(self.main_loop.log)
             self.parameter_values = self.main_loop.model.get_parameter_values()
-
-            if self.algorithm_buffers is None:
-            	self.algorithm_buffers = [x for x,y in self.main_loop.algorithm.step_rule_updates]
-            	# self.algorithm_buffers = VariableFilter(roles = [ALGORITHM_BUFFER])(self.algorithm_buffers)
-            # self.algorithm_values = [x.get_value() for x in self.algorithm_buffers]
-
         else:
             self.counter += 1
 
         # If nan, skip steps to go back.
         if math.isnan(current_value):
             self.counter = self.patience + 1
+
+        if self.algorithm_buffers is None:
+            self.algorithm_buffers = [x for x,y in self.main_loop.algorithm.step_rule_updates]
+            self.algorithm_buffers = VariableFilter(roles = [ALGORITHM_BUFFER])(self.algorithm_buffers)
+            # self.algorithm_values = [x.get_value() for x in self.algorithm_buffers]
 
         if self.counter > self.patience:
             self.counter = 0
@@ -85,13 +96,13 @@ class LearningRateSchedule(SimpleExtension):
 
             # Reset algorithm buffer
             for var in self.algorithm_buffers:
-            	var.set_value(0.*var.get_value())
+                var.set_value(0.*var.get_value())
 
             # Reset states
             for var in self.states:
-            	var.set_value(0.*var.get_value())
+                var.set_value(0.*var.get_value())
 
             self.lr.set_value(0.5*self.lr.get_value())
 
             if self.lr.get_value() < self.tolerance:
-            	self.main_loop.log.current_row['training_finish_requested'] = True
+                self.main_loop.log.current_row['training_finish_requested'] = True

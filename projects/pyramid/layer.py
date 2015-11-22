@@ -25,7 +25,7 @@ from fuel.streams import ServerDataStream
 
 from theano import tensor
 
-from play.extensions import Flush, LearningRateSchedule, TimedFinish
+from play.extensions import Flush, LearningRateSchedule2, TimedFinish
 from play.extensions.plot import Plot
 from play.projects.pyramid.config import PyramidParameters
 from play.projects.pyramid.model import PyramidLayer, SimplePyramidLayer
@@ -38,7 +38,7 @@ from play.datasets.server.blizzard.server_stream import open_stream
 
 save_dir = os.environ['RESULTS_DIR']
 if 'blizzard' not in save_dir:
-  save_dir = os.path.join(save_dir,'blizzard/')
+  save_dir = os.path.join(save_dir,'/blizzard/')
 
 if len(sys.argv) > 1:
   num_job = int(sys.argv[1])
@@ -103,7 +103,7 @@ if tbptt_flag:
 # Model
 #################
 
-pl = SimplePyramidLayer(batch_size, frame_size, k, depth, size)
+pl = PyramidLayer(batch_size, frame_size, k, depth, size)
 
 x = tensor.tensor3('residual')
 context = tensor.tensor3('upsampled')
@@ -213,6 +213,7 @@ extensions = [
     LearningRateSchedule(lr,
       'valid_nll',
       states = states.values(),
+      path = save_dir+"pkl/best_"+experiment_name+".pkl",
       every_n_batches = n_batches,
       before_first_epoch = True),
     TimedFinish(60*60*22)
