@@ -5,6 +5,7 @@ matplotlib.use('Agg')
 from matplotlib import pyplot
 import copy
 import time
+import math
 
 from blocks.filter import VariableFilter
 from blocks.extensions import SimpleExtension
@@ -50,7 +51,7 @@ class LearningRateSchedule(SimpleExtension):
         self.tolerance = 1e-13
         self.states = states
         self.epsilon = -1e-5
-        super(LearningRateSchedule, self).__init__(**kwargs)
+        super(LearningRateSchedule, self).__init__(before_first_epoch = True, **kwargs)
 
     def do(self, callback_name, *args):
         current_value = self.main_loop.log.current_row.get(self.track_var)
@@ -71,6 +72,10 @@ class LearningRateSchedule(SimpleExtension):
 
         else:
             self.counter += 1
+
+        # If nan, skip steps to go back.
+        if math.isnan(current_value):
+            self.counter = self.patience + 1
 
         if self.counter > self.patience:
             self.counter = 0
