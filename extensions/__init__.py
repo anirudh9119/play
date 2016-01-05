@@ -6,6 +6,7 @@ from matplotlib import pyplot
 import copy
 import time
 import math
+import ipdb
 
 from blocks.filter import VariableFilter
 from blocks.extensions import SimpleExtension
@@ -41,7 +42,7 @@ class LearningRateSchedule(SimpleExtension):
     """
     def __init__(self, lr, track_var, states = {}, path = None, **kwargs):
         self.lr = lr
-        self.patience = 3
+        self.patience = 15 #3
         self.counter = 0
         self.best_value = numpy.inf
         self.track_var = track_var
@@ -56,7 +57,7 @@ class LearningRateSchedule(SimpleExtension):
         if path is not None:
             loaded_main_loop = load(path)
             #Hardcoded
-            ext = loaded_main_loop.extensions[-2]
+            ext = loaded_main_loop.extensions[-1]
             self.lr.set_value(2.*ext.lr.get_value())
             self.log = ext.log
             self.parameter_values = ext.parameter_values
@@ -91,18 +92,20 @@ class LearningRateSchedule(SimpleExtension):
         if self.counter > self.patience:
             self.counter = 0
             # self.main_loop.iteration_state = self.iteration_state
-            self.main_loop.log = self.log
+            #self.main_loop.log = self.log
             self.main_loop.model.set_parameter_values(self.parameter_values)
 
             # Reset algorithm buffer
             for var in self.algorithm_buffers:
-                var.set_value(0.*var.get_value())
+                var_value = var.get_value()
+                var.set_value(numpy.zeros(var_value.shape, dtype = var_value.dtype))
 
             # Reset states
             for var in self.states:
-                var.set_value(0.*var.get_value())
+                var_value = var.get_value()
+                var.set_value(numpy.zeros(var_value.shape, dtype = var_value.dtype))
 
-            self.lr.set_value(0.5*self.lr.get_value())
+            self.lr.set_value(float(0.5*self.lr.get_value()))
 
             if self.lr.get_value() < self.tolerance:
                 self.main_loop.log.current_row['training_finish_requested'] = True
