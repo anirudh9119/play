@@ -11,13 +11,13 @@ from play.utils import chunkIt
 import ipdb
 import pysptk as SPTK
 
-TOTAL_ROWS = 138368
+TOTAL_ROWS = 105856
 
 def process_chunk(num_chunk):
     #Total number of rows
-    TOTAL_ROWS = 138368
+    TOTAL_ROWS = 105856
     n_times = 50
-    n_process = 7 # briaree
+    n_process = 14 # briaree
     files_per_batch = 25
     num_files = n_process*n_times*files_per_batch
 
@@ -51,9 +51,9 @@ def process_chunk(num_chunk):
 
     #Hardcoded values
     mgc_h5 = resulth5.create_dataset(
-                'mgc', (num_files, 2048, 35), dtype='float32')
+                'mgc', (num_files, 512, 35), dtype='float32')
     f0_h5 = resulth5.create_dataset(
-                'f0', (num_files, 2048), dtype='float32')
+                'f0', (num_files, 512), dtype='float32')
 
     def process_batch(q, x, i):
         results = []
@@ -114,9 +114,9 @@ def convert_to_spectrum():
     resulth5 = h5py.File(save_path, mode='w')
 
     sp_h5 = resulth5.create_dataset(
-                'sp', (TOTAL_ROWS, 2048, 257), dtype='float32')
+                'sp', (TOTAL_ROWS, 512, 257), dtype='float32')
     f0_h5 = resulth5.create_dataset(
-                'f0', (TOTAL_ROWS, 2048), dtype='float32')
+                'f0', (TOTAL_ROWS, 512), dtype='float32')
 
     means = []
     stds  = []
@@ -338,6 +338,6 @@ if __name__ == "__main__":
       num_chunk = 0
 
     #num_chunk = 1
-    #process_chunk(num_chunk)
+    process_chunk(num_chunk)
     #paste_chunks()
-    convert_to_spectrum()
+    #convert_to_spectrum()
