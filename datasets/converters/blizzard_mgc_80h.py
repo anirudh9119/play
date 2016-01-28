@@ -17,7 +17,7 @@ def process_chunk(num_chunk):
     #Total number of rows
     TOTAL_ROWS = 105856
     n_times = 50
-    n_process = 14 # briaree
+    n_process = 11 # briaree
     files_per_batch = 25
     num_files = n_process*n_times*files_per_batch
 
@@ -107,8 +107,8 @@ def convert_to_spectrum():
     #ipdb.set_trace()
     data_path = os.environ['FUEL_DATA_PATH']
     data_path = os.path.join(data_path,'blizzard/')
-    data_name = "mgc_blizzard.hdf5"
-    save_name = "sp_blizzard.hdf5"
+    data_name = "mgc_blizzard_80h.hdf5"
+    save_name = "sp_blizzard_80h.hdf5"
 
     save_path = os.path.join(data_path, save_name)
     resulth5 = h5py.File(save_path, mode='w')
@@ -128,7 +128,7 @@ def convert_to_spectrum():
     f0 = h5file['f0']
 
     #Check next line
-    sp_h5[:] =  f0[:]
+    f0_h5[:] =  f0[:]
 
     import time
 
@@ -139,7 +139,7 @@ def convert_to_spectrum():
 
     #TOTAL_ROWS = 5000#138368
     n_times = 100
-    n_process = 14 # marge
+    n_process = 7 # marge
     #files_per_batch = 100
     #num_files = n_process*n_times*files_per_batch
 
@@ -255,20 +255,78 @@ def compute_std_sp():
         f0_mean = f0_mean,
         f0_std = f0_std)
 
+def add_phonemes():
+    data_path = os.environ['FUEL_DATA_PATH']
+    data_path = os.path.join(data_path,'blizzard/')
+    save_name = "sp_blizzard_80h_phon.hdf5"
+    phon_file = "tbptt_blizzard_80h.hdf5"
+    data_file = "sp_blizzard_80h.hdf5"
+
+    save_path = os.path.join(data_path, save_name)
+    phon_path = os.path.join(data_path, phon_file)
+    data_path = os.path.join(data_path, data_file)
+
+    resulth5 = h5py.File(save_path, mode='w')
+    phonh5 = h5py.File(phon_path, mode = 'r')
+    datah5 = h5py.File(data_path, mode = 'r')
+
+    sp_h5 = resulth5.create_dataset(
+                'sp', (TOTAL_ROWS, 512, 257), dtype='float32')
+    f0_h5 = resulth5.create_dataset(
+                'f0', (TOTAL_ROWS, 512), dtype='float32')
+
+    phon_h5 = resulth5.create_dataset(
+                'phonemes', (TOTAL_ROWS, 512), dtype = 'int16')
+
+    f0_h5[:] = datah5['f0'][:]
+    phon_h5[:] = phonh5['phonemes'][:,::64]
+
+    n_times = 100
+    idx = chunkIt(range(TOTAL_ROWS), n_times)
+
+    for num_indx, indx in enumerate(idx):
+        print num_indx, 100
+        sp_h5[indx] = datah5['sp'][indx]
+
+    cont = TOTAL_ROWS
+    end_train = int(.9*cont)
+    end_valid = int(.95*cont)
+    end_test = cont
+
+    split_dict = {
+        'train': {'sp': (0, end_train),
+                  'f0': (0, end_train),
+                  'phonemes': (0, end_train)},
+        'valid': {'sp': (end_train, end_valid),
+                  'f0': (end_train, end_valid),
+                  'phonemes': (end_train, end_valid)},
+        'test': {'sp': (end_valid, end_test),
+                 'f0': (end_valid, end_test),
+                 'phonemes': (end_valid, end_test)}
+        }
+
+    resulth5.attrs['split'] = H5PYDataset.create_split_array(split_dict)
+
+    resulth5.flush()
+    resulth5.close()
+
+    phonh5.close()
+    datah5.close()
+
 def paste_chunks():
     data_path = os.environ['FUEL_DATA_PATH']
     data_path = os.path.join(data_path,'blizzard/')
-    save_name = "mgc_blizzard.hdf5"
+    save_name = "mgc_blizzard_80h.hdf5"
     save_path = os.path.join(data_path, save_name)
     resulth5 = h5py.File(save_path, mode='w')
 
     mgc_h5 = resulth5.create_dataset(
-                'mgc', (TOTAL_ROWS, 2048, 35), dtype='float32')
+                'mgc', (TOTAL_ROWS, 512, 35), dtype='float32')
     f0_h5 = resulth5.create_dataset(
-                'f0', (TOTAL_ROWS, 2048), dtype='float32')
+                'f0', (TOTAL_ROWS, 512), dtype='float32')
 
     #list_chunks = [0,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
-    list_chunks = range(16)
+    list_chunks = range(8)
     means = []
     stds  = []
     cont = 0
@@ -281,13 +339,10 @@ def paste_chunks():
         mgc = h5file['mgc']
         f0 = h5file['f0']
 
-        #means.append((mgc[:,:,:].mean(axis=(0,1)), f0[:].mean()))
-        #stds.append((mgc[:,:,:].std(axis=(0,1)), f0[:].std()))
+        means.append((mgc[:,:,:].mean(axis=(0,1)), f0[:].mean()))
+        stds.append((mgc[:,:,:].std(axis=(0,1)), f0[:].std()))
 
         num_files = len(f0)
-
-        if num_chunk == 15:
-            num_files = 7118
 
         mgc_h5[cont:cont+num_files] = mgc[:num_files,:,:]
         f0_h5[cont:cont+num_files] = f0[:num_files,:]
@@ -313,7 +368,7 @@ def paste_chunks():
     resulth5.flush()
     resulth5.close()
 
-    std_file = os.path.join(data_path, 'mgc_standardize.npz')
+    std_file = os.path.join(data_path, 'mgc_standardize_80h.npz')
     data_mean = numpy.array(means).mean(axis = 0)
     data_std = numpy.array(stds).mean(axis = 0)
 
@@ -338,6 +393,7 @@ if __name__ == "__main__":
       num_chunk = 0
 
     #num_chunk = 1
-    process_chunk(num_chunk)
+    #process_chunk(num_chunk)
     #paste_chunks()
     #convert_to_spectrum()
+    add_phonemes()
