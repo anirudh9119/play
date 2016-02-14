@@ -50,7 +50,7 @@ if __name__ == '__main__':
     fs, x = wavfile.read(sys.argv[1])
     mgc, f0 = wav2mgcf0(x)
 
-    x_synth = mgcf02wav(mgc_with_noise, f0_with_noise)
+    x_synth = mgcf02wav(mgc, f0)
 
     # Normalize x_synth by its maximum to avoid clipping
     x_synth = .95 * x_synth/max(abs(x_synth)) * 2**15

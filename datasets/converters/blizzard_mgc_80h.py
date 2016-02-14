@@ -17,7 +17,7 @@ def process_chunk(num_chunk):
     #Total number of rows
     TOTAL_ROWS = 105856
     n_times = 50
-    n_process = 14 # briaree
+    n_process = 11 # 7 for briaree
     files_per_batch = 25
     num_files = n_process*n_times*files_per_batch
 
@@ -258,7 +258,7 @@ def compute_std_sp():
 def paste_chunks():
     data_path = os.environ['FUEL_DATA_PATH']
     data_path = os.path.join(data_path,'blizzard/')
-    save_name = "mgc_blizzard.hdf5"
+    save_name = "mgc_blizzard_80h.hdf5"
     save_path = os.path.join(data_path, save_name)
     resulth5 = h5py.File(save_path, mode='w')
 
@@ -268,7 +268,7 @@ def paste_chunks():
                 'f0', (TOTAL_ROWS, 2048), dtype='float32')
 
     #list_chunks = [0,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
-    list_chunks = range(16)
+    list_chunks = range(8)
     means = []
     stds  = []
     cont = 0
@@ -285,9 +285,6 @@ def paste_chunks():
         #stds.append((mgc[:,:,:].std(axis=(0,1)), f0[:].std()))
 
         num_files = len(f0)
-
-        if num_chunk == 15:
-            num_files = 7118
 
         mgc_h5[cont:cont+num_files] = mgc[:num_files,:,:]
         f0_h5[cont:cont+num_files] = f0[:num_files,:]
@@ -313,7 +310,7 @@ def paste_chunks():
     resulth5.flush()
     resulth5.close()
 
-    std_file = os.path.join(data_path, 'mgc_standardize.npz')
+    std_file = os.path.join(data_path, 'mgc_standardize_80h.npz')
     data_mean = numpy.array(means).mean(axis = 0)
     data_std = numpy.array(stds).mean(axis = 0)
 
@@ -338,6 +335,6 @@ if __name__ == "__main__":
       num_chunk = 0
 
     #num_chunk = 1
-    process_chunk(num_chunk)
-    #paste_chunks()
+    #process_chunk(num_chunk)
+    paste_chunks()
     #convert_to_spectrum()

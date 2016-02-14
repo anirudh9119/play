@@ -17,9 +17,16 @@ class SegmentSequence(Transformer):
         add a flag indicating the beginning of a new sequence.
     flag_name : str, optional
         name of the source for the flag
+    min_size : int, optional
+        smallest possible sequence length for the last cut
+    return_last : bool, optional
+        return the last cut of the sequence, which might be different size
+    share_value : bool, optional
+        every cut will share the first value with the last value of past cut
     """
     def __init__(self, data_stream, seq_size=100, which_sources=None,
-                 add_flag=False, flag_name = None, min_size = 10, **kwargs):
+                 add_flag=False, flag_name = None, min_size = 10,
+                 return_last = True, share_value = False, **kwargs):
         super(SegmentSequence, self).__init__(data_stream=data_stream,
             produces_examples=data_stream.produces_examples,**kwargs)
 
@@ -33,6 +40,10 @@ class SegmentSequence(Transformer):
         self.len_data = None
         self.add_flag = add_flag
         self.min_size = min_size
+        self.share_value = share_value
+
+        if not return_last:
+            self.min_size += self.seq_size
 
         if flag_name is None:
             flag_name = u"start_flag"
@@ -62,6 +73,9 @@ class SegmentSequence(Transformer):
                             self.step:(self.step+self.seq_size)]
 
         self.step += self.seq_size
+
+        if self.share_value:
+            self.step -= 1
         
         if self.step + self.min_size >= self.len_data:
             self.data = None
