@@ -14,7 +14,7 @@ import ipdb
 import pysptk as SPTK
 import scipy, pylab
 from scipy.io import wavfile
-
+import cmath
 
 
 TOTAL_ROWS = 138368
@@ -65,22 +65,21 @@ def process_chunk(num_chunk):
     # Prepare output file
 
     #Hardcoded values
-    mgc_h5 = resulth5.create_dataset(
-                'mgc', (num_files, 2048, 35), dtype='float32')
-    f0_h5 = resulth5.create_dataset(
-                'f0', (num_files, 2048), dtype='float32')
+    amplitude = resulth5.create_dataset(
+                'amplitude', (num_files, 64000), dtype='float32')
+    phase = resulth5.create_dataset(
+                'phase', (num_files, 64000), dtype='float32')
 
     def process_batch(q, x, i):
         results = []
         for n, f in enumerate(x):
             if n % 10 == 0:
                 print("Reading row %i of %i" % (n+1, len(x)))
-    	    
             d = f.astype('float32') / (2 ** 15)
 	    #Sample_rate = 16000
             sample_rate = 16000
-	    results.append(stft(d, sample_rate, 0.050, 0.025))
-
+	    x_a = stft(d, sample_rate, 0.050, 0.025)
+            results.append(x_a.flatten())
         return q.put((i, results))
 
     total_time = time.time()
@@ -106,13 +105,16 @@ def process_chunk(num_chunk):
         results_list = [x for small_list in results_list
                           for x in small_list]
 
-	# Commented!
-        #mgcc, f0 = zip(*results_list)
         # Add to hdf5 file
-        #for mgc, f0 in results_list:
-        #    mgc_h5[cont] = mgc
-        #    f0_h5[cont] = f0
-        #    cont += 1
+        for spec in results_list:
+             amplitude[cont] = abs(spec)
+             ct = len(spec)
+             sig_phase = []
+             for i in range(ct):
+                sig_phase.append(cmath.phase(spec[i]))
+
+             phase[cont] = sig_phase
+             cont += 1
 
         print "total time: ", (time.time()-total_time)/60.
         sys.stdout.flush()
