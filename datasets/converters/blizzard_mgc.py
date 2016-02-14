@@ -77,9 +77,8 @@ def process_chunk(num_chunk):
                 print("Reading row %i of %i" % (n+1, len(x)))
     	    
             d = f.astype('float32') / (2 ** 15)
-	    #Sample_rate = 48000, Can You once check, 
-            #if this is the sample rate for sound files?
-            sample_rate = 48000
+	    #Sample_rate = 16000
+            sample_rate = 16000
 	    results.append(stft(d, sample_rate, 0.050, 0.025))
 
         return q.put((i, results))
