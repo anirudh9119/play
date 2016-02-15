@@ -4,14 +4,29 @@ import sys
 import numpy
 from fuel.datasets.hdf5 import H5PYDataset
 from multiprocessing import Process, Queue
+
+
 from play.utils.mgc import wav2mgcf0
 import multiprocessing
 import time
 from play.utils import chunkIt
 import ipdb
 import pysptk as SPTK
+import scipy, pylab
+from scipy.io import wavfile
+import cmath
+
 
 TOTAL_ROWS = 138368
+
+def stft(x, fs, framesz, hop):
+    framesamp = int(framesz*fs)
+    hopsamp = int(hop*fs)
+    w = scipy.hanning(framesamp)
+    X = scipy.array([scipy.fft(w*x[i:i+framesamp])
+                     for i in range(0, len(x)-framesamp, hopsamp)])
+    return X
+
 
 def process_chunk(num_chunk):
     #Total number of rows
@@ -32,7 +47,7 @@ def process_chunk(num_chunk):
     indx_mp = chunkIt(indx_mp, n_times)
     indx_mp = [chunkIt(x, n_process) for x in indx_mp]
 
-    data_path = os.environ['FUEL_DATA_PATH']
+    data_path = os.environ['FUEL_DATA_PATH'] 
     data_path = os.path.join(data_path,'blizzard/')
     file_name = "tbptt_blizzard_80h.hdf5"
     save_name = "chunk_{}.hdf5".format(num_chunk)
@@ -50,18 +65,21 @@ def process_chunk(num_chunk):
     # Prepare output file
 
     #Hardcoded values
-    mgc_h5 = resulth5.create_dataset(
-                'mgc', (num_files, 2048, 35), dtype='float32')
-    f0_h5 = resulth5.create_dataset(
-                'f0', (num_files, 2048), dtype='float32')
+    amplitude = resulth5.create_dataset(
+                'amplitude', (num_files, 64000), dtype='float32')
+    phase = resulth5.create_dataset(
+                'phase', (num_files, 64000), dtype='float32')
 
     def process_batch(q, x, i):
         results = []
         for n, f in enumerate(x):
             if n % 10 == 0:
                 print("Reading row %i of %i" % (n+1, len(x)))
-            results.append(wav2mgcf0(f))
-
+            d = f.astype('float32') / (2 ** 15)
+	    #Sample_rate = 16000
+            sample_rate = 16000
+	    x_a = stft(d, sample_rate, 0.050, 0.025)
+            results.append(x_a.flatten())
         return q.put((i, results))
 
     total_time = time.time()
@@ -87,13 +105,16 @@ def process_chunk(num_chunk):
         results_list = [x for small_list in results_list
                           for x in small_list]
 
-        #mgcc, f0 = zip(*results_list)
-
         # Add to hdf5 file
-        for mgc, f0 in results_list:
-            mgc_h5[cont] = mgc
-            f0_h5[cont] = f0
-            cont += 1
+        for spec in results_list:
+             amplitude[cont] = abs(spec)
+             ct = len(spec)
+             sig_phase = []
+             for i in range(ct):
+                sig_phase.append(cmath.phase(spec[i]))
+
+             phase[cont] = sig_phase
+             cont += 1
 
         print "total time: ", (time.time()-total_time)/60.
         sys.stdout.flush()
@@ -106,6 +127,7 @@ def process_chunk(num_chunk):
 def convert_to_spectrum():
     #ipdb.set_trace()
     data_path = os.environ['FUEL_DATA_PATH']
+    
     data_path = os.path.join(data_path,'blizzard/')
     data_name = "mgc_blizzard.hdf5"
     save_name = "sp_blizzard.hdf5"
@@ -337,7 +359,7 @@ if __name__ == "__main__":
     else:
       num_chunk = 0
 
-    #num_chunk = 1
-    #process_chunk(num_chunk)
-    #paste_chunks()
-    convert_to_spectrum()
+    num_chunk = 1
+    process_chunk(num_chunk)
+   # paste_chunks()
+    #convert_to_spectrum()
