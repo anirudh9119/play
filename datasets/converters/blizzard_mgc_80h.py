@@ -17,11 +17,7 @@ def process_chunk(num_chunk):
     #Total number of rows
     TOTAL_ROWS = 105856
     n_times = 50
-<<<<<<< HEAD
     n_process = 11 # 7 for briaree
-=======
-    n_process = 11 # briaree
->>>>>>> 7d6db28d6b564349e9e8795325693891134b18fe
     files_per_batch = 25
     num_files = n_process*n_times*files_per_batch
 
@@ -388,7 +384,6 @@ def paste_chunks():
         f0_mean = f0_mean,
         f0_std = f0_std)
 
-
 if __name__ == "__main__":
 
     if len(sys.argv) > 1:
@@ -398,10 +393,6 @@ if __name__ == "__main__":
 
     #num_chunk = 1
     #process_chunk(num_chunk)
-<<<<<<< HEAD
-    paste_chunks()
-=======
     #paste_chunks()
->>>>>>> 7d6db28d6b564349e9e8795325693891134b18fe
     #convert_to_spectrum()
     add_phonemes()

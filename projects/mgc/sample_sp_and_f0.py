@@ -68,10 +68,10 @@ x_tr = next(data_stream.get_epoch_iterator())
 save_dir = os.environ['RESULTS_DIR']
 save_dir = os.path.join(save_dir,'blizzard/')
 
-experiment_name = "sp_and_f0_2_wn"
-num_sample = "06_less_var_f0_less_var_sp_conditioned"
+experiment_name = "baseline"
+num_sample = "1"
 
-main_loop = load(save_dir+"pkl/best_"+experiment_name+".pkl")
+main_loop = load(save_dir+"pkl/"+experiment_name+".pkl")
 
 generator = main_loop.model.get_top_bricks()[0]
 
@@ -149,7 +149,7 @@ for this_sample in range(n_samples):
 	axarr[1].plot(sampled_f0,linewidth=3)
 	axarr[0].set_adjustable('box-forced')
 	axarr[1].set_adjustable('box-forced')
-	pyplot.savefig(save_dir+"samples/new/best_"+experiment_name+num_sample+str(this_sample)+".png")
+	pyplot.savefig(save_dir+"samples/best_"+experiment_name+num_sample+str(this_sample)+".png")
 	pyplot.close()
 
 	sampled_f0_corrected = sampled_f0
@@ -163,7 +163,7 @@ for this_sample in range(n_samples):
 
 	x_synth = mgcf02wav(mgc_reconstruct, sampled_f0_corrected)
 	x_synth = .95 * x_synth/max(abs(x_synth)) * 2**15
-	wavfile.write(save_dir+"samples/new/best_"+experiment_name+num_sample+str(this_sample)+ ".wav", 16000, x_synth.astype('int16'))
+	wavfile.write(save_dir+"samples/best_"+experiment_name+num_sample+str(this_sample)+ ".wav", 16000, x_synth.astype('int16'))
 
 	#Scaling
 	outputs[outputs>11.866405] = 11.866405
@@ -179,7 +179,7 @@ for this_sample in range(n_samples):
 	axarr[1].plot(sampled_f0,linewidth=3)
 	axarr[0].set_adjustable('box-forced')
 	axarr[1].set_adjustable('box-forced')
-	pyplot.savefig(save_dir+"samples/new/best_"+experiment_name+num_sample+str(this_sample)+"_scaled.png")
+	pyplot.savefig(save_dir+"samples/best_"+experiment_name+num_sample+str(this_sample)+"_scaled.png")
 	pyplot.close()
 
 	mgc_sp = outputs 
@@ -188,4 +188,4 @@ for this_sample in range(n_samples):
 	mgc_reconstruct = numpy.apply_along_axis(SPTK.mgcep, 1, mgc_sp_test, order, alpha, gamma, eps = 0.0012, etype = 1, itype = 2)
 	x_synth = mgcf02wav(mgc_reconstruct, sampled_f0_corrected)
 	x_synth = .95 * x_synth/max(abs(x_synth)) * 2**15
-	wavfile.write(save_dir+"samples/new/best_"+experiment_name+num_sample+str(this_sample)+ "_scaled.wav", 16000, x_synth.astype('int16'))
+	wavfile.write(save_dir+"samples/best_"+experiment_name+num_sample+str(this_sample)+ "_scaled.wav", 16000, x_synth.astype('int16'))

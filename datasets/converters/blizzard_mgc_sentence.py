@@ -24,8 +24,8 @@ frame_window = 512
 def process_chunk(num_chunk):
     #Total number of rows
     TOTAL_ROWS = 36212
-    n_times = 15
-    n_process = 10 # 7 for briaree
+    n_times = 30
+    n_process = 14 # 7 for briaree
     files_per_batch = 10
     num_files = n_process*n_times*files_per_batch
 
@@ -126,7 +126,7 @@ def process_chunk(num_chunk):
     def process_batch(q, x, i):
         results = []
         for n, f in enumerate(x):
-            if n % 10 == 0:
+            if n % 1 == 0:
                 print("Reading row %i of %i" % (n+1, len(x)))
             
             mgc, f0, vs = wav2mgcf0(f)
@@ -269,8 +269,7 @@ if __name__ == "__main__":
     else:
       num_chunk = 0
 
-    #num_chunk = 1
-    process_chunk(0)
+    process_chunk(3)
     #paste_chunks()
     #convert_to_spectrum()
     #dd_phonemes()

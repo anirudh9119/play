@@ -27,13 +27,12 @@ def stft(x, fs, framesz, hop):
                      for i in range(0, len(x)-framesamp, hopsamp)])
     return X
 
-
 def process_chunk(num_chunk):
     #Total number of rows
     TOTAL_ROWS = 138368
-    n_times = 50
-    n_process = 7 # briaree
-    files_per_batch = 25
+    n_times = 800
+    n_process = 10 #14 
+    files_per_batch = 20
     num_files = n_process*n_times*files_per_batch
 
     #total_chunks = numpy.ceil(TOTAL_ROWS/float(num_files))
@@ -49,14 +48,14 @@ def process_chunk(num_chunk):
 
     data_path = os.environ['FUEL_DATA_PATH'] 
     data_path = os.path.join(data_path,'blizzard/')
-    file_name = "tbptt_blizzard_80h.hdf5"
+    file_name = "tbptt_blizzard.hdf5"
     save_name = "chunk_{}.hdf5".format(num_chunk)
     hdf5_path = os.path.join(data_path, file_name)
 
     save_dir = os.environ['RESULTS_DIR']
     if 'blizzard' not in save_dir:
       save_dir = os.path.join(save_dir,'blizzard/')
-    save_path = os.path.join(save_dir, save_name)
+    save_path = os.path.join('/Tmp/sotelo', save_name)
     resulth5 = h5py.File(save_path, mode='w')
 
     h5file = h5py.File(hdf5_path, mode='r')
@@ -66,20 +65,20 @@ def process_chunk(num_chunk):
 
     #Hardcoded values
     amplitude = resulth5.create_dataset(
-                'amplitude', (num_files, 64000), dtype='float32')
+                'amplitude', (num_files, 326, 401), dtype='float32')
     phase = resulth5.create_dataset(
-                'phase', (num_files, 64000), dtype='float32')
+                'phase', (num_files, 326, 401), dtype='float32')
 
     def process_batch(q, x, i):
         results = []
         for n, f in enumerate(x):
-            if n % 10 == 0:
+            if n % 1 == 0:
                 print("Reading row %i of %i" % (n+1, len(x)))
             d = f.astype('float32') / (2 ** 15)
-	    #Sample_rate = 16000
+            #Sample_rate = 16000
             sample_rate = 16000
-	    x_a = stft(d, sample_rate, 0.050, 0.025)
-            results.append(x_a.flatten())
+            x_a = stft(d, sample_rate, 0.050, 0.025)[:,:401]
+            results.append([abs(x_a), numpy.angle(x_a)])
         return q.put((i, results))
 
     total_time = time.time()
@@ -98,7 +97,10 @@ def process_chunk(num_chunk):
             process_list.append(this_process)
             process_list[i_process].start()
 
+        print "Waiting for results..."
         results_list = [q.get() for i in xrange(n_process)]
+        print "Results found!"
+
         results_list = sorted(results_list, key=lambda x: x[0])
         _, results_list = zip(*results_list)
 
@@ -106,23 +108,39 @@ def process_chunk(num_chunk):
                           for x in small_list]
 
         # Add to hdf5 file
-        for spec in results_list:
-             amplitude[cont] = abs(spec)
-             ct = len(spec)
-             sig_phase = []
-             for i in range(ct):
-                sig_phase.append(cmath.phase(spec[i]))
+        # for spec in results_list:
+        #     print "inputing data: ", cont
+        #     amplitude[cont] = spec[0]
+        #     phase[cont] = spec[1]
+        #     cont += 1
+        len_res = len(results_list)
+        all_amplitude = numpy.array([x[0] for x in results_list])
+        all_phase = numpy.array([x[1] for x in results_list])
 
-             phase[cont] = sig_phase
-             cont += 1
+        amplitude[cont:(cont+len_res)] = all_amplitude
+        phase[cont:(cont+len_res)] = all_phase
+        cont += len_res
 
         print "total time: ", (time.time()-total_time)/60.
-        sys.stdout.flush()
+        #sys.stdout.flush()
+
+    end_train = int(.9*cont)
+    end_valid = int(.95*cont)
+    end_test = cont
+
+    split_dict = {
+        'train': {'amplitude': (0, end_train),
+                  'phase': (0, end_train)},
+        'valid': {'amplitude': (end_train, end_valid),
+                  'phase': (end_train, end_valid)},
+        'test': {'amplitude': (end_valid, end_test),
+                 'phase': (end_valid, end_test)}
+        }
+
+    resulth5.attrs['split'] = H5PYDataset.create_split_array(split_dict)
 
     resulth5.flush()
     resulth5.close()
-    h5file.close()
-
 
 def convert_to_spectrum():
     #ipdb.set_trace()
@@ -359,7 +377,7 @@ if __name__ == "__main__":
     else:
       num_chunk = 0
 
-    num_chunk = 1
+    num_chunk = 0
     process_chunk(num_chunk)
    # paste_chunks()
     #convert_to_spectrum()

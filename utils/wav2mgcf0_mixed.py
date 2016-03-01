@@ -67,7 +67,7 @@ def mixed_excitation(f0, voicing_str, hopsize):
     exc = np.zeros(len(exc_voiced))
 
     for i in range(5):
-        h = np.loadtxt('filter{}.txt'.format(i+1))
+        h = h_filters[i]
         x_v = lfilter(h, 1, exc_voiced)
         x_uv = lfilter(h, 1, exc_unvoiced)
 
@@ -76,8 +76,12 @@ def mixed_excitation(f0, voicing_str, hopsize):
 
         str_v = voicing_str[:, i]
         for k in range(len(str_v)):
-            gain_v[k*hopsize:(k+1)*hopsize] = str_v[k]
-            gain_uv[k*hopsize:(k+1)*hopsize] = 1.0 - str_v[k]
+          if f0[k] > 0:
+              gain_v[k*hopsize:(k+1)*hopsize] = str_v[k]
+              gain_uv[k*hopsize:(k+1)*hopsize] = 1.0 - str_v[k]
+          else:
+              gain_v[k*hopsize:(k+1)*hopsize] = 0.0
+              gain_uv[k*hopsize:(k+1)*hopsize] = 1.0
 
         exc += (gain_v * x_v + gain_uv * x_uv)
 

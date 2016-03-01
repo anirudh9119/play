@@ -234,12 +234,6 @@ cost = cost_matrix.mean() + 0.*start_flag
 cost.name = "nll"
 
 cg = ComputationGraph(cost)
-
-from blocks.graph import apply_noise
-apply_noise_weights = True
-if apply_noise_weights:
-  cg = apply_noise(cg,cg.parameters, 0.075)
-
 model = Model(cost)
 
 transition_matrix = VariableFilter(

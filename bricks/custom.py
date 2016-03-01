@@ -18,10 +18,12 @@ floatX = config.floatX
 
 import numpy
 
+SAMPLING_BIAS = 0.
+
 class SoftPlus(Activation):
     @application(inputs=['input_'], outputs=['output'])
     def apply(self, input_):
-        return tensor.nnet.softplus(input_)
+        return tensor.nnet.softplus(input_ - SAMPLING_BIAS)
 
 class DeepTransitionFeedback(AbstractFeedback, Initializable):
     def __init__(self, mlp, **kwargs):
@@ -165,8 +167,8 @@ class GMMMLP(Initializable):
         state = self.mlp.apply(inputs)
         mu = self.mu.apply(state)
         sigma = self.sigma.apply(state) + self.const
-        coeff = self.coeff2.apply(self.coeff.apply(state),
-            extra_ndim=state.ndim - 2) + self.const
+        coeff = self.coeff2.apply(self.coeff.apply(state) + \
+            SAMPLING_BIAS, extra_ndim=state.ndim - 2) + self.const
         return mu, sigma, coeff
 
     @property
@@ -216,7 +218,7 @@ class GMMEmitter(AbstractEmitter, Initializable, Random):
             std=1.,
             dtype=mu.dtype)
 
-        result = mu + sigma*epsilon#*0.6 #reduce variance.
+        result = mu + sigma*epsilon
 
         return result.reshape(shape_result, ndim = ndim_result)
 
@@ -363,7 +365,7 @@ class SPF0Emitter(AbstractEmitter, Initializable, Random):
         state = self.mlp.apply(readouts)
         mu = self.mu.apply(state)
         sigma = self.sigma.apply(state) + self.const
-        binary = self.binary.apply(state)
+        binary = self.binary.apply(state*(1.+SAMPLING_BIAS))
         binary = (binary+self.const)*(1-2*self.const)
         return mu, sigma, binary
 
@@ -375,7 +377,7 @@ class SPF0Emitter(AbstractEmitter, Initializable, Random):
                                          avg=0., std=1.,
                                          dtype=mu.dtype)
 
-        un = self.theano_rng.uniform(size=binary.shape)*0. + 0.5
+        un = self.theano_rng.uniform(size=binary.shape)
         binary_sample = tensor.cast(un < binary, floatX)
 
         f0_sample = mu + sigma*epsilon
