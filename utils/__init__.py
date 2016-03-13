@@ -1,9 +1,9 @@
 from theano import tensor as T
 import numpy as np
 from cle.cle.utils.op import logsumexp
-from cle.cle.utils import totuple
-from theano.ifelse import ifelse
-from cle.cle.utils import predict
+#from cle.cle.utils import totuple
+#from theano.ifelse import ifelse
+#from cle.cle.utils import predict
 
 def regex_final_value(name_state = ""):
     return '[a-zA-Z_]*'+ name_state +'_final_value'
@@ -41,5 +41,27 @@ def GMM(y, mu, sig, coeff):
     inner = -0.5 * T.sum(T.sqr(y - mu) / sig**2 + 2 * T.log(sig) + T.log(2 * np.pi), axis= -2)
 
     nll = -logsumexp(T.log(coeff) + inner, axis=-1)
-    
+    return nll.reshape(shape_y[:-1], ndim = n_dim-1)
+
+def GMM_phase(y, mu, sig, coeff):
+    """
+    y     : TensorVariable
+    mu    : FullyConnected (Linear)
+    sig   : FullyConnected (Softplus)
+    coeff : FullyConnected (Softmax)
+    """
+
+    n_dim = y.ndim
+    shape_y = y.shape
+    print n_dim
+    y = y.reshape((-1, shape_y[-1]))
+    y = y.dimshuffle(0, 1, 'x')
+
+    mu = mu.reshape((-1,mu.shape[-1]/coeff.shape[-1],coeff.shape[-1]))
+    sig = sig.reshape((-1, sig.shape[-1]/coeff.shape[-1],coeff.shape[-1]))
+    coeff = coeff.reshape((-1, coeff.shape[-1]))
+
+    inner0 = np.pi - abs(T.mod(y - mu, 2*np.pi) - np.pi)
+    inner = -0.5 * T.sum(T.sqr(inner0)/sig**2 + 2 * T.log(sig) + T.log(2 * np.pi), axis= -2)
+    nll = -logsumexp(T.log(coeff) +inner, axis=-1)
     return nll.reshape(shape_y[:-1], ndim = n_dim-1)

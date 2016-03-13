@@ -1,22 +1,22 @@
-import theano
-import ipdb
+#import theano
+#import ipdb
 
 from theano import tensor, config
 
 from blocks.bricks import (Activation, Initializable, MLP, Random,
                         Identity, NDimensionalSoftmax, Logistic)
 from blocks.bricks.base import application
-from blocks.bricks.sequence_generators import (AbstractEmitter, 
+from blocks.bricks.sequence_generators import (AbstractEmitter,
                         AbstractFeedback)
 
 from cle.cle.cost import Gaussian
 from cle.cle.utils import predict
 
-from play.utils import GMM
+from play.utils import GMM, GMM_phase
 
 floatX = config.floatX
 
-import numpy
+#import numpy
 
 SAMPLING_BIAS = 0.
 
@@ -158,7 +158,7 @@ class GMMMLP(Initializable):
 
         self.coeff2 = NDimensionalSoftmax()
         self.mlp = mlp
-        self.children = [self.mlp, self.mu, 
+        self.children = [self.mlp, self.mu,
                          self.sigma, self.coeff, self.coeff2]
         #self.children.extend(self.mlp.children)
 
@@ -195,7 +195,7 @@ class GMMEmitter(AbstractEmitter, Initializable, Random):
     @application
     def emit(self, readouts):
         mu, sigma, coeff = self.gmmmlp.apply(readouts)
-        
+
         frame_size = mu.shape[-1]/coeff.shape[-1]
         k = coeff.shape[-1]
         shape_result = coeff.shape
@@ -225,8 +225,15 @@ class GMMEmitter(AbstractEmitter, Initializable, Random):
     @application
     def cost(self, readouts, outputs):
         mu, sigma, coeff = self.components(readouts)
-        #ipdb.set_trace()
+#        ipdb.set_trace()
         return GMM(outputs, mu, sigma, coeff)
+
+    @application
+    def cost_phase(self, readouts, outputs):
+        mu, sigma, coeff = self.components(readouts)
+        #(pi - abs(  (x - x* mod 2pi) - pi ))
+        #ipdb.set_trace()
+        return GMM_phase(outputs, mu, sigma, coeff)
 
     @application
     def initial_outputs(self, batch_size):
@@ -329,7 +336,7 @@ class SPF0Emitter(AbstractEmitter, Initializable, Random):
     """A Pitch and SP emitter.
 
     """
-    def __init__(self, mlp, frame_size = 259, k = 20, const=1e-5, **kwargs):
+    def __init__(self, mlp, frame_size = 401, k = 20, const=1e-5, **kwargs):
         super(SPF0Emitter, self).__init__(**kwargs)
         self.mlp = mlp
         input_dim = self.mlp.output_dim
@@ -425,3 +432,74 @@ class SPF0Emitter(AbstractEmitter, Initializable, Random):
             return self.frame_size
         return super(SPF0Emitter, self).get_dim(name)
 
+
+class SPectrumPhase(AbstractEmitter, Initializable, Random):
+    def __init__(self, mlp, mlp2, frame_size = 401, k = 20, const=1e-5, **kwargs):
+        super(SPectrumPhase, self).__init__(**kwargs)
+        self.mlp = mlp
+        self.mlp2 = mlp2
+
+#        input_dim = self.mlp.output_dim
+        self.const = const
+        self.frame_size = frame_size
+
+        mlp_gmm = GMMMLP(mlp = mlp,
+                         dim = (frame_size - 401)*k,
+                         k = k,
+                         const = const)
+
+        self.gmm_emitter = GMMEmitter(gmmmlp = mlp_gmm,
+                                      output_size = frame_size-401,
+                                      k = k,
+                                      name = "gmm_emitter")
+        #Different cost function
+        mlp_gmm2 = GMMMLP(mlp = mlp2,
+                          dim = (frame_size-401)*k,
+                          k=k,
+                          const = const)
+
+        self.gmm_emitter2 = GMMEmitter(gmmmlp = mlp_gmm2,
+                                      output_size = frame_size-401,
+                                      k = k,
+                                      name = "gmm_emitter2")
+
+        self.children = [self.mlp, self.mlp2, self.gmm_emitter, self.gmm_emitter2] # This is checkpoint
+
+
+    @application
+    def emit(self, readouts):
+        sample_gmm = self.gmm_emitter.emit(readouts)
+        sample_phase = self.gmm_emitter.emit(readouts)  # extra mod oper
+        return tensor.concatenate([sample_gmm, sample_phase], axis = -1)
+
+    @application
+    def cost(self, readouts, outputs):
+        outputs_shape = outputs.shape
+        outputs_ndim = outputs.ndim
+        outputs = outputs.reshape((-1, outputs_shape[-1]))
+        outputs = outputs.T
+        #outputs_shape[-1] should be 2
+
+        sp = outputs[:-401]
+        sp = sp.T
+        sp = sp.reshape(tensor.set_subtensor(outputs_shape[-1], -1), ndim = outputs_ndim )
+
+        phase = outputs[:401]
+        phase = phase.T
+        phase = phase.reshape(tensor.set_subtensor(outputs_shape[-1], -1), ndim = outputs_ndim )
+        #phase = phase.reshape(outputs_shape[:-1], ndim = outputs_ndim-1)
+        #phase = phase.dimshuffle(*range(phase.ndim) + ['x'])
+
+
+        cost_amplitude = self.gmm_emitter.cost(readouts, sp)
+        cost_phase = self.gmm_emitter2.cost_phase(readouts, phase)
+        return cost_phase + cost_amplitude
+
+    @application
+    def initial_outputs(self, batch_size):
+        return tensor.zeros((batch_size, self.frame_size), dtype=floatX)
+
+    def get_dim(self, name):
+        if name == 'outputs':
+            return self.frame_size
+        return super(SPectrumPhase, self).get_dim(name)
