@@ -13,6 +13,7 @@ from cle.cle.cost import Gaussian
 from cle.cle.utils import predict
 
 from play.utils import GMM, GMM_phase
+import numpy as np
 
 floatX = config.floatX
 
@@ -470,6 +471,7 @@ class SPectrumPhase(AbstractEmitter, Initializable, Random):
     def emit(self, readouts):
         sample_gmm = self.gmm_emitter.emit(readouts)
         sample_phase = self.gmm_emitter.emit(readouts)  # extra mod oper
+        sample_phase = tensor.mod(sample_phase, 2*np.pi) - np.pi
         return tensor.concatenate([sample_gmm, sample_phase], axis = -1)
 
     @application
@@ -484,7 +486,7 @@ class SPectrumPhase(AbstractEmitter, Initializable, Random):
         sp = sp.T
         sp = sp.reshape(tensor.set_subtensor(outputs_shape[-1], -1), ndim = outputs_ndim )
 
-        phase = outputs[:401]
+        phase = outputs[401:]
         phase = phase.T
         phase = phase.reshape(tensor.set_subtensor(outputs_shape[-1], -1), ndim = outputs_ndim )
         #phase = phase.reshape(outputs_shape[:-1], ndim = outputs_ndim-1)
